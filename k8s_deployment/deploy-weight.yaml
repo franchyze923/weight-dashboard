@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weight-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weight-dashboard
+  template:
+    metadata:
+      labels:
+        app: weight-dashboard
+    spec:
+      containers:
+      - name: weight-dashboard
+        image: franchyze923/weight-dashboard:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        volumeMounts:
+        - name: tokens-volume
+          mountPath: /app/tokens.json
+          subPath: tokens.json
+      volumes:
+      - name: tokens-volume
+        secret:
+          secretName: weight-dashboard-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: weight-dashboard
+spec:
+  type: LoadBalancer
+  selector:
+    app: weight-dashboard
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
