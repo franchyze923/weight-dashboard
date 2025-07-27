@@ -38,7 +38,7 @@ def refresh_if_needed():
     app.logger.warning("⚠️  Access token expired — refreshing...")
 
     r = requests.post("https://wbsapi.withings.net/v2/oauth2", data={
-        "action": "refresh_token",
+        "action": "requesttoken",  # 🔥 THIS FIXES IT
         "grant_type": "refresh_token",
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
