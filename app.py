@@ -12,29 +12,30 @@ CLIENT_SECRET = "YOUR_CLIENT_SECRET"
 TOKEN_FILE = "tokens.json"
 
 def load_tokens():
-    print("📥 Loading tokens from file...")
+    app.logger.info("📥 Loading tokens from file...")
     if not os.path.exists(TOKEN_FILE):
         raise Exception(f"Token file '{TOKEN_FILE}' not found")
     with open(TOKEN_FILE) as f:
         tokens = json.load(f)
-    print(f"✅ Access token loaded: {tokens['access_token'][:10]}... (expires at {datetime.datetime.fromtimestamp(tokens['expires_at'])})")
+    app.logger.info(f"✅ Access token loaded: {tokens['access_token'][:10]}... (expires at {datetime.datetime.fromtimestamp(tokens['expires_at'])})")
     return tokens
 
 def save_tokens(tokens):
-    print(f"💾 Saving new tokens to file...")
-    print(f"🔐 New access token: {tokens['access_token'][:10]}... (valid for {int(tokens['expires_at'] - time.time())} seconds)")
-    print(f"🔁 New refresh token: {tokens['refresh_token'][:10]}...")
+    app.logger.info("💾 Saving new tokens to file...")
+    app.logger.info(f"🔐 New access token: {tokens['access_token'][:10]}... (valid for {int(tokens['expires_at'] - time.time())} seconds)")
+    app.logger.info(f"🔁 New refresh token: {tokens['refresh_token'][:10]}...")
     with open(TOKEN_FILE, "w") as f:
         json.dump(tokens, f)
 
 def refresh_if_needed():
+    app.logger.info("🔁 Called refresh_if_needed()")
     tokens = load_tokens()
     now = time.time()
     if now < tokens["expires_at"]:
-        print("✅ Access token is still valid. No refresh needed.")
+        app.logger.info("✅ Access token is still valid. No refresh needed.")
         return tokens["access_token"]
 
-    print("⚠️  Access token expired — refreshing...")
+    app.logger.warning("⚠️  Access token expired — refreshing...")
 
     r = requests.post("https://wbsapi.withings.net/v2/oauth2", data={
         "action": "refresh_token",
@@ -46,8 +47,8 @@ def refresh_if_needed():
 
     response = r.json()
     if response["status"] != 0:
-        print("❌ Token refresh failed. API response:")
-        print(response)
+        app.logger.error("❌ Token refresh failed. API response:")
+        app.logger.error(response)
         raise Exception("Token refresh failed")
 
     body = response["body"]

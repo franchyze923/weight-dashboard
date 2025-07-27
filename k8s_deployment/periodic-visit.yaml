@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ping-weight-dashboard
+spec:
+  schedule: "0 * * * *"  # hourly
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: curl
+            image: curlimages/curl
+            args: ["http://weight-dashboard.default.svc.cluster.local"]
+          restartPolicy: OnFailure
