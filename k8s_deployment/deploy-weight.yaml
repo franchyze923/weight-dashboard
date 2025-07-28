@@ -32,14 +32,29 @@ spec:
         volumeMounts:
         - name: tokens-secret
           mountPath: /app/readonly-tokens
-        - name: tokens-writable
+          readOnly: true
+        - name: tokens-pvc
           mountPath: /app/tokens
       volumes:
       - name: tokens-secret
         secret:
           secretName: weight-dashboard-secret
-      - name: tokens-writable
-        emptyDir: {}
+      - name: tokens-pvc
+        persistentVolumeClaim:
+          claimName: weight-dashboard-tokens
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: weight-dashboard-tokens
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Mi
 
 ---
 

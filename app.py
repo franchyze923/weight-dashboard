@@ -9,12 +9,16 @@ from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
 
-# ✅ Always overwrite with secret file at startup
+TOKEN_DIR = "/app/tokens"
+TOKEN_FILE = os.path.join(TOKEN_DIR, "tokens.json")
 SECRET_TOKEN_PATH = "/app/readonly-tokens/tokens.json"
-TOKEN_FILE = "tokens.json"
-if os.path.exists(TOKEN_FILE):
-    os.remove(TOKEN_FILE)
-shutil.copy(SECRET_TOKEN_PATH, TOKEN_FILE)
+
+# ✅ Create token dir if needed
+os.makedirs(TOKEN_DIR, exist_ok=True)
+
+# ✅ Copy secret only if tokens.json doesn't already exist
+if not os.path.exists(TOKEN_FILE):
+    shutil.copy(SECRET_TOKEN_PATH, TOKEN_FILE)
 
 app = Flask(__name__)
 
@@ -87,7 +91,13 @@ def get_weight_data():
         "access_token": access_token
     })
 
-    data = r.json()["body"]["measuregrps"]
+    response = r.json()
+    if response.get("status") != 0 or "measuregrps" not in response.get("body", {}):
+        app.logger.error("❌ Failed to retrieve weight data. API response:")
+        app.logger.error(response)
+        return []
+
+    data = response["body"]["measuregrps"]
     weights = []
     for g in data:
         for m in g["measures"]:
@@ -103,12 +113,18 @@ def index():
     today = datetime.datetime.now(tz=ET).date()
     today_weight = next((w for w in weights if w["date"] == today), None)
     latest_weight = weights[0] if weights else None
+    weight_change = None
+    if len(weights) >= 2 and latest_weight:
+        prev_weight = weights[1]["weight"]
+        weight_change = round(latest_weight["weight"] - prev_weight, 2)
+
     recent_weights = weights[:50]
     return render_template(
         "index.html",
         today_weight=today_weight,
         latest_weight=latest_weight,
-        recent_weights=recent_weights
+        recent_weights=recent_weights,
+        weight_change=weight_change
     )
 
 if __name__ == "__main__":
