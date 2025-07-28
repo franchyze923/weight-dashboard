@@ -18,14 +18,28 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
+        env:
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: withings-api-creds
+              key: CLIENT_ID
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: withings-api-creds
+              key: CLIENT_SECRET
         volumeMounts:
-        - name: tokens-volume
-          mountPath: /app/tokens.json
-          subPath: tokens.json
+        - name: tokens-secret
+          mountPath: /app/readonly-tokens
+        - name: tokens-writable
+          mountPath: /app/tokens
       volumes:
-      - name: tokens-volume
+      - name: tokens-secret
         secret:
           secretName: weight-dashboard-secret
+      - name: tokens-writable
+        emptyDir: {}
 
 ---
 

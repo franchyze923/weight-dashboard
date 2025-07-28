@@ -4,12 +4,22 @@ import datetime
 import json
 import time
 import os
+import shutil
+from zoneinfo import ZoneInfo
+
+ET = ZoneInfo("America/New_York")
+
+# ✅ Always overwrite with secret file at startup
+SECRET_TOKEN_PATH = "/app/readonly-tokens/tokens.json"
+TOKEN_FILE = "tokens.json"
+if os.path.exists(TOKEN_FILE):
+    os.remove(TOKEN_FILE)
+shutil.copy(SECRET_TOKEN_PATH, TOKEN_FILE)
 
 app = Flask(__name__)
 
-CLIENT_ID = "YOUR_CLIENT_ID"
-CLIENT_SECRET = "YOUR_CLIENT_SECRET"
-TOKEN_FILE = "tokens.json"
+CLIENT_ID = os.environ["CLIENT_ID"]
+CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 
 def load_tokens():
     app.logger.info("📥 Loading tokens from file...")
@@ -17,7 +27,8 @@ def load_tokens():
         raise Exception(f"Token file '{TOKEN_FILE}' not found")
     with open(TOKEN_FILE) as f:
         tokens = json.load(f)
-    app.logger.info(f"✅ Access token loaded: {tokens['access_token'][:10]}... (expires at {datetime.datetime.fromtimestamp(tokens['expires_at'])})")
+    expires = datetime.datetime.fromtimestamp(tokens["expires_at"], tz=ET)
+    app.logger.info(f"✅ Access token loaded: {tokens['access_token'][:10]}... (expires at {expires})")
     return tokens
 
 def save_tokens(tokens):
@@ -31,6 +42,7 @@ def refresh_if_needed():
     app.logger.info("🔁 Called refresh_if_needed()")
     tokens = load_tokens()
     now = time.time()
+
     if now < tokens["expires_at"]:
         app.logger.info("✅ Access token is still valid. No refresh needed.")
         return tokens["access_token"]
@@ -38,7 +50,7 @@ def refresh_if_needed():
     app.logger.warning("⚠️  Access token expired — refreshing...")
 
     r = requests.post("https://wbsapi.withings.net/v2/oauth2", data={
-        "action": "requesttoken",  # 🔥 THIS FIXES IT
+        "action": "requesttoken",
         "grant_type": "refresh_token",
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
@@ -46,7 +58,7 @@ def refresh_if_needed():
     })
 
     response = r.json()
-    if response["status"] != 0:
+    if response.get("status") != 0:
         app.logger.error("❌ Token refresh failed. API response:")
         app.logger.error(response)
         raise Exception("Token refresh failed")
@@ -56,14 +68,14 @@ def refresh_if_needed():
     new_refresh = body["refresh_token"]
     expires_at = now + body["expires_in"]
 
-    tokens = {
+    new_tokens = {
         "access_token": new_access,
         "refresh_token": new_refresh,
         "expires_at": expires_at
     }
-    save_tokens(tokens)
-    return new_access
 
+    save_tokens(new_tokens)
+    return new_access
 
 def get_weight_data():
     access_token = refresh_if_needed()
@@ -80,16 +92,15 @@ def get_weight_data():
     for g in data:
         for m in g["measures"]:
             if m["type"] == 1:  # weight
-                timestamp = datetime.datetime.fromtimestamp(g["date"])
-                weight = m["value"] * (10 ** m["unit"]) * 2.20462  # convert to lbs
+                timestamp = datetime.datetime.fromtimestamp(g["date"], tz=ET)
+                weight = m["value"] * (10 ** m["unit"]) * 2.20462  # kg to lbs
                 weights.append({"date": timestamp.date(), "datetime": timestamp, "weight": weight})
     return sorted(weights, key=lambda x: x["datetime"], reverse=True)
-
 
 @app.route("/")
 def index():
     weights = get_weight_data()
-    today = datetime.date.today()
+    today = datetime.datetime.now(tz=ET).date()
     today_weight = next((w for w in weights if w["date"] == today), None)
     latest_weight = weights[0] if weights else None
     recent_weights = weights[:50]
@@ -99,7 +110,6 @@ def index():
         latest_weight=latest_weight,
         recent_weights=recent_weights
     )
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0")
